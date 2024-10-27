@@ -1,0 +1,545 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{algorithmic}
+\usepackage{algorithm}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\newcommand{\openaccess}{{\small\textcolor{green}{[OA]}}}
+\newcommand{\arxiv}{{\small\textcolor{purple}{[arXiv]}}}
+\newcommand{\preprint}{{\small\textcolor{blue}{[Preprint]}}}
+
+\title{Confidence-Weighted PMI: An Information-Theoretic Approach with Proper Error Propagation}
+\author{[John Creighton (AKA s243a) in collaboration with Claude Sonet 3.5]}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We present a novel approach to calculating Pointwise Mutual Information (PMI) that combines information theory, Bayesian statistics, and error propagation analysis. Our method addresses traditional PMI calculation challenges through theoretically grounded smoothing techniques that properly account for uncertainty in both observed and expected probabilities. Key innovations include entropy-based degrees of freedom calculation, proper error propagation in probability products, and a unified treatment of statistical confidence. Results show improved handling of both rare and common n-grams while maintaining proper probabilistic interpretation.
+\end{abstract}
+
+\section{Introduction}
+Pointwise Mutual Information (PMI) is a fundamental measure in computational linguistics that quantifies word associations. While powerful, traditional PMI calculations face several challenges:
+\begin{itemize}
+    \item Undefined values for unseen combinations
+    \item Unreliable estimates for rare events
+    \item Lack of proper error propagation
+    \item Mixing of count and probability spaces
+\end{itemize}
+
+\subsection{Historical Context and Innovation}
+Our approach builds on established foundations while introducing several novel elements:
+
+\subsubsection{Established Components}
+\begin{itemize}
+    \item Laplace smoothing (Laplace, 1812) \cite{laplace1812}
+    \item Linguistic significance testing (Church \& Hanks, 1990) \cite{church1990}
+    \item Dirichlet priors (MacKay \& Peto, 1995) \cite{mackay1995}
+\end{itemize}
+
+\subsubsection{Novel Contributions}
+\begin{itemize}
+    \item Entropy-based degrees of freedom
+    \item Proper error propagation in probability products
+    \item Units-consistent smoothing formulation
+    \item Confidence-weighted probability adjustment
+\end{itemize}
+
+\section{PMI Framework}
+
+\subsection{Traditional Definition}
+The classical PMI formula for words x and y is:
+\begin{equation}
+    \text{PMI}(x,y) = \log\frac{P(x,y)}{P(x)P(y)}
+\end{equation}
+
+For n-grams, this extends to:
+\begin{equation}
+    \text{PMI}(w_1,\ldots,w_n) = \log\frac{P(w_1,\ldots,w_n)}{P(w_1)\cdots P(w_n)}
+\end{equation}
+
+\subsection{Challenges in Traditional Approaches}
+\subsubsection{Zero Probabilities}
+When P(x,y) = 0, PMI is undefined. Traditional solutions include:
+\begin{itemize}
+    \item Add-one smoothing
+    \item Add-$\alpha$ smoothing
+    \item Good-Turing estimation
+\end{itemize}
+
+These approaches often lack theoretical justification and can introduce biases.
+
+\subsubsection{Type Mismatches}
+Traditional smoothing often mixes different types of quantities:
+\begin{equation}
+    P_{\text{smoothed}} = \frac{\text{count} + \alpha}{N + \alpha k}
+\end{equation}
+where count is an integer (occurrence count) and $\alpha$ is a probability-like quantity (0 to 1). This mixing of types raises several concerns:
+
+\begin{itemize}
+    \item Dimensional inconsistency: Adding counts to probabilities violates unit homogeneity principles \cite{jaynes2003probability}
+    \item Scale sensitivity: The effect of $\alpha$ varies dramatically with corpus size
+    \item Interpretation difficulty: The smoothed result lacks clear probabilistic interpretation
+\end{itemize}
+
+\paragraph{Dimensional Analysis}
+Consider the dimensions in traditional smoothing:
+\begin{itemize}
+    \item count: [occurrences]
+    \item $\alpha$: [dimensionless]
+    \item N: [total occurrences]
+    \item k: [possible outcomes]
+\end{itemize}
+
+The expression $\text{count} + \alpha$ combines [occurrences] with [dimensionless], violating the principle of dimensional homogeneity \cite{barenblatt1996scaling, bridgman1922dimensional}. This is analogous to adding meters to unitless numbers in physics \cite{taylor1997introduction}.
+
+\paragraph{Real-World Effects}
+This type mismatch leads to practical issues:
+
+1. Corpus Size Dependency:
+   For a small corpus (N = 1000):
+   \begin{equation}
+       P_{\text{smoothed}} = \frac{5 + 0.5}{1000 + 0.5k} \approx 0.005
+   \end{equation}
+   
+   For a large corpus (N = 1,000,000):
+   \begin{equation}
+       P_{\text{smoothed}} = \frac{5000 + 0.5}{1,000,000 + 0.5k} \approx 0.005
+   \end{equation}
+   
+   The smoothing effect becomes negligible with corpus size.
+
+2. Cross-Corpus Comparison:
+   When comparing across corpora of different sizes, the same $\alpha$ value produces inconsistent smoothing effects \cite{chen1999empirical}.
+
+Our formulation maintains type consistency by operating entirely in probability space:
+\begin{equation}
+    P_{\text{smoothed}} = \frac{w \cdot P + \alpha(1 - \text{confidence})}{1 + w}
+\end{equation}
+where all terms are dimensionless probabilities or probability ratios. This ensures:
+\begin{itemize}
+    \item Scale invariance with corpus size
+    \item Consistent interpretation across datasets
+    \item Proper probabilistic semantics
+\end{itemize}
+
+This approach aligns with modern statistical practice \cite{gelman2013bayesian} and measurement theory \cite{hand2004measurement}.
+
+\subsection{Information Theory Perspective}
+PMI relates to mutual information through expectation:
+\begin{equation}
+    I(X;Y) = \mathbb{E}_{x,y}[\text{PMI}(x,y)]
+\end{equation}
+
+Shannon entropy provides a natural framework for uncertainty:
+\begin{equation}
+    H(X) = -\sum_x P(x)\log P(x)
+\end{equation}
+
+\begin{itemize}
+    \item The entropy can be used to calculate the degrees of freedom (See appendix B.1)
+    \item The mutual information can be used to calculate probabilities via the partition function (See Appendix C.2)
+\end{itemize}
+
+\subsection{Statistical Significance}
+The t-statistic measures deviation from independence:
+\begin{equation}
+    t = \frac{P_{\text{observed}} - P_{\text{expected}}}{\text{SE}}
+\end{equation}
+
+For our standard error estimation, we use the form:
+\begin{equation}
+    \text{SE} = \sqrt{\frac{p(1-p)}{\text{df}}}
+\end{equation}
+where p represents the probability of the word or n-gram occurring at any position, and df is calculated using our entropy-based approach. This formulation treats each position in the text as a binary trial (presence or absence of the target sequence), with degrees of freedom accounting for the effective number of independent observations.
+
+\section{Enhanced PMI Formulation}
+
+\subsection{Unit-Consistent Smoothing with Statistical Weighting}
+Our approach combines confidence-weighted smoothing with statistical significance:
+\begin{align}
+    P_{\text{smoothed}}^{\text{ngram}} &= \frac{w \cdot P_{\text{observed}} + \alpha(1 - \text{confidence})}{1 + w} \\
+    P_{\text{smoothed}}^{\text{expected}} &= \frac{w \cdot P_{\text{expected}} + \alpha(1 - \text{confidence})}{1 + w}
+\end{align}
+where:
+\begin{itemize}
+    \item $w = 1/p$ is the statistical weight ($p$ is two-tailed p-value) \footnote{1/p is referred to as surprise by some authors \cite{stone2019}. The term "binary surprise index" appears in \cite{cole2021}, where it is attributed to Shannon's work \cite{shannon1948}.}
+    \item $\alpha = \sqrt{\text{relative\_variance}}/\sqrt{\text{df}}$ is the smoothing parameter
+    \item confidence is derived from the t-statistic
+\end{itemize}
+
+\subsection{Statistical Significance}
+The t-statistic measures deviation from independence:
+\begin{equation}
+    t = \frac{P_{\text{observed}} - P_{\text{expected}}}{\text{SE}}
+\end{equation}
+
+The p-value for this statistic determines our weighting:
+\begin{equation}
+    p = 2(1 - \text{CDF}_t(|t|, \text{df}))
+\end{equation}
+
+This formulation provides:
+\begin{itemize}
+    \item Strong weighting ($w \gg 1$) for statistically significant associations
+    \item Balanced weighting ($w \approx 1$) for borderline cases
+    \item Proper probability normalization through $(1+w)$ denominator
+\end{itemize}
+
+\subsection{Error Propagation}
+For products of probabilities, relative errors add in quadrature:
+\begin{equation}
+    \text{rv\_num} = \sum_i \left(\frac{\text{se}_i}{\text{prob}_i}\right)^2
+\end{equation}
+
+Normalization ensures proper scaling:
+\begin{equation}
+    \text{rv\_den} = \sum_i \left(\frac{1}{\text{prob}_i}\right)^2
+\end{equation}
+
+The relative variance is then:
+\begin{equation}
+    \text{relative\_variance} = \frac{\text{rv\_num}}{\text{rv\_den}}
+\end{equation}
+
+\subsection{Entropy-Based Degrees of Freedom}
+Degrees of freedom calculation incorporates uncertainty:
+\begin{equation}
+    \text{df} = \exp(H) \cdot \text{expected\_occurrences} - \text{ngram\_length}
+\end{equation}
+
+This naturally handles:
+\begin{itemize}
+    \item Rare events
+    \item Multiple observations
+    \item Structural constraints
+\end{itemize}
+
+
+
+% === END OF PART 1 ===
+
+% === BEGINNING OF PART 2 ===
+% Assumes all preamble and previous sections from Part 1
+
+\section{Statistical Analysis of Error Propagation}
+
+\subsection{Probability Space Smoothing}
+Our smoothing operates consistently in probability space:
+\begin{align}
+    P_{\text{smoothed}}^{\text{ngram}} &= \frac{\text{ngram\_count}}{\text{total\_unigrams}} + \alpha(1 - \text{confidence}) \\
+    P_{\text{smoothed}}^{\text{expected}} &= P_{\text{expected}} + \alpha(1 - \text{confidence})
+\end{align}
+where $\alpha$ is derived from proper error propagation.
+
+\subsection{Error Propagation in Products}
+For the expected probability (product of unigram probabilities), the relative error follows from the product rule of differentiation:
+\begin{equation}
+    \frac{\partial}{\partial x_i} \prod_j x_j = \prod_{j \neq i} x_j
+\end{equation}
+
+Dividing by the product yields proportional errors:
+\begin{equation}
+    \frac{1}{\prod_j x_j} \frac{\partial}{\partial x_i} \prod_j x_j = \frac{1}{x_i}
+\end{equation}
+
+\subsection{Variance Normalization}
+The relative variance components:
+\begin{align}
+    \text{rv\_num} &= \sum_i \left(\frac{\text{se}_i}{p_i}\right)^2 \\
+    \text{rv\_den} &= \sum_i \left(\frac{1}{p_i}\right)^2
+\end{align}
+ensure that standard error per degree of freedom equals the expected unigram standard error.
+
+\section{Core Implementation}
+\begin{lstlisting}[language=Python]
+def calculate_pmi_with_t_score(self, ngram):
+    # Calculate probabilities
+    ngram_prob = ngram_count / total_unigrams
+    
+    # Calculate relative variance
+    rv_num = sum((ws['se']/ws['prob'])**2 
+                 for ws in word_stats)
+    rv_den = sum((1/ws['prob'])**2 
+                 for ws in word_stats)
+    relative_variance = rv_num / rv_den
+
+    ws = Calculate_WordStats(ngram)
+
+    # Calculate expected probability and error
+    expected_prob = np.prod([ws['prob'] for ws in word_stats])
+    
+    # Calculate degrees of freedom
+    ngram_df = calculate_entropy_df(ngram)
+
+    ngram_se = math.sqrt((ngram_prob * (1-ngram_prob)) / ngram_df)
+
+    t_stat = abs((ngram_prob - expected_prob)/ngram_se)
+    p_value = 2 * (1 - stats.t.cdf(t_stat, df=ngram_df))  # Two-tailed test
+    w = 1/p_value  # Or some function of p_value that grows with surprise
+
+    # Confidence-weighted smoothing
+    confidence = 1 - stats.t.cdf(t_stat, df=ngram_df) 
+    
+    # Smoothing parameters
+    alpha = math.sqrt(relative_variance) / math.sqrt(ngram_df)
+    
+    # Apply smoothing
+    smoothed_ngram_prob = ( w * ngram_prob + 
+        alpha * (1 - confidence)) / w
+    smoothed_expected_prob = w* (expected_prob + 
+        alpha * (1 - confidence)) / w
+    
+    return math.log(smoothed_ngram_prob / 
+                   smoothed_expected_prob)
+\end{lstlisting}
+
+\section{Generalizing the Significance Weighting (i.e. w)}
+
+In the previous section we use a factor $w$ to weight higher the observed results higher when they are more statistically significance. Specifically we set:
+
+\begin{equation}
+   w(statistics):=1/p(x)
+\end{equation}
+
+We are using the notation $$":="$$ as set denote one possibility. For instance, we could have used $(1/(p(x))^2$, in which case the PMI would converge fast to the value implied directly from the data as the significance increases. It's worth noting that in the above section the standard error was inferred from the n-gram statistics but we could also have a standard error in the expected value statistics based on sub-n-grams such as uni grams. 
+
+So there are two natural measures of statistical significance, one is with respect to the n-gram statistics (the observed), and one is with respect to what would be expected given it's constituent components (e.g. uni grams). 
+
+In the later case multiple measures could be derived based on the components of sub-n-grams and assumptions about there statistics. 
+
+In the next subsections, we will look at both a recursive approach based on Bayesian statistics which we will reserve for future work, and a unigram approach that assumes statistical independence. 
+
+\subsection{Error Propagation with Multinomial Statistics}
+For a sequence of independent unigrams, the multinomial standard error is:
+\begin{equation}
+\text{SE}_{\text{multinomial}} = \sqrt{\sum_{i} \frac{p_i(1-p_i)}{n} - \sum_{i\neq j}\frac{p_ip_j}{n}}
+\end{equation}
+where $p_i$ are the individual unigram probabilities and $n$ is our degrees of freedom.
+
+\subsection{Future Work}
+\subsubsection{Sequential Dependency in N-grams}
+A more sophisticated approach would leverage the hierarchical nature of n-grams:
+\begin{equation}
+P(w_1...w_n) = P(w_1...w_{n-1})P(w_n|w_1...w_{n-1})
+\end{equation}
+
+This leads to a recursive standard error formulation:
+\begin{equation}
+\text{SE}_{n\text{-gram}} = \sqrt{\left(\frac{\text{SE}_{n-1\text{-gram}}}{P_{n-1\text{-gram}}}\right)^2 + \left(\frac{\text{SE}_{w_n}}{P_{w_n}}\right)^2}
+\end{equation}
+
+This approach:
+\begin{itemize}
+    \item Captures sequential dependencies
+    \item Uses available statistics efficiently
+    \item Maintains computational tractability
+    \item Provides natural extension to higher-order n-grams
+\end{itemize}
+
+\section{Confidence Intervals and Statistical Significance}
+
+\subsection{Asymmetric Confidence Bounds}
+For PMI as a ratio of random variables:
+\begin{equation}
+    \text{PMI} = \log\left(\frac{X + e_1}{Y + e_2}\right)
+\end{equation}
+where $X$ is observed frequency, $Y$ is expected frequency, and $e_1$, $e_2$ are error terms.
+
+\subsection{95\% Confidence Interval}
+The minimum PMI value for 95\% confidence satisfies:
+\begin{equation}
+    \int_{\text{PMI}_{\text{min}}}^{\infty} p(\text{PMI}) \, d\text{PMI} = 0.95
+\end{equation}
+
+\subsection{Bayesian Interpretation}
+In the low-data regime, the posterior distribution incorporates prior information:
+\begin{equation}
+    p(\text{PMI}|\text{data}) \propto p(\text{data}|\text{PMI})p(\text{PMI})
+\end{equation}
+
+\section{Results and Validation}
+
+\subsection{Common Bigrams}
+Example results showing proper handling of frequent combinations:
+\begin{verbatim}
+'do n't': PMI = 1.92
+'has been': PMI = 0.98
+'ca n't': PMI = 0.97
+\end{verbatim}
+
+\subsection{Rare Combinations}
+Demonstration of appropriate smoothing for rare events:
+\begin{verbatim}
+'jet propulsion': PMI = 0.18
+'propulsion laboratory': PMI = 0.16
+\end{verbatim}
+
+\section{Discussion and Future Work}
+
+\subsection{Theoretical Implications}
+The units-consistent approach provides several advantages:
+\begin{itemize}
+    \item Proper error propagation
+    \item Natural confidence weighting
+    \item Theoretical connection to information theory
+\end{itemize}
+
+\subsection{Future Directions}
+Areas for further research:
+\begin{itemize}
+    \item Alternative error distribution models
+    \item Extension to higher-order n-grams
+    \item Domain-specific applications
+\end{itemize}
+
+\appendix
+\section{Derivation of Error Propagation}
+
+\subsection{Product Rule Application}
+For a product of probabilities $P = \prod_i p_i$, the error propagation follows:
+\begin{equation}
+    \Delta P = \sqrt{\sum_i \left(\frac{\partial P}{\partial p_i}\Delta p_i\right)^2}
+\end{equation}
+
+After normalization:
+\begin{equation}
+    \left(\frac{\Delta P}{P}\right)^2 = \sum_i \left(\frac{\Delta p_i}{p_i}\right)^2
+\end{equation}
+
+\subsection{Confidence Interval Derivation}
+For asymmetric confidence bounds:
+\begin{equation}
+    P(\text{PMI} > \text{PMI}_{\text{min}}) = \int_{\text{PMI}_{\text{min}}}^{\infty} \frac{1}{\sqrt{2\pi\sigma^2}} e^{-\frac{(x-\mu)^2}{2\sigma^2}} dx
+\end{equation}
+
+\section{Implementation Details}
+
+\subsection{Entropy Calculation}
+\begin{lstlisting}[language=Python]
+def calculate_entropy_df(self, ngram):
+    words = ngram.split()
+    probs = []
+    for word in words:
+        count = self.word_freq.get(word, 0)
+        prob = count / self.total_unigrams
+        probs.append(prob)
+    
+    H = -sum(p * math.log(p) 
+            for p in probs if p > 0)
+    
+    return math.exp(H) * expected_occurrences \
+           - len(words)
+\end{lstlisting}
+
+\subsection{Error Propagation Implementation}
+\begin{lstlisting}[language=Python]
+# Calculate relative variance components
+rv_num = sum((ws['se']/ws['prob'])**2 
+             for ws in word_stats)
+rv_den = sum((1/ws['prob'])**2 
+             for ws in word_stats)
+relative_variance = rv_num / rv_den
+
+# Confidence-weighted smoothing
+alpha = math.sqrt(relative_variance) \
+        / math.sqrt(df)
+\end{lstlisting}
+
+\section{Additional Theoretical Background}
+
+\subsection{Information Theory Connection}
+The relationship between entropy and degrees of freedom:
+\begin{equation}
+    \text{df} \approx e^H
+\end{equation}
+provides a natural measure of effective sample size.
+
+\subsection{Statistical Mechanics Analogy}
+The entropy-based approach connects to partition functions in statistical mechanics:
+\begin{equation}
+    Z = \sum_i e^{-\beta E_i}
+\end{equation}
+where energy levels correspond to probability ratios.
+
+the partition function can be used to calculate probabilities as follows:
+
+\begin{equation}
+P(E_i) = exp(-\beta E_i) / Z
+\end{equation}
+
+\bibliographystyle{plain}
+\begin{thebibliography}{9}
+
+\bibitem{bridgman1922dimensional} Bridgman, P. W. (1922).
+    Dimensional analysis.
+    Yale University Press.
+    \url{https://archive.org/details/dimensionalanaly00bridrich}
+
+\bibitem{chen1999empirical} Chen, S. F., \& Goodman, J. (1999).
+    An empirical study of smoothing techniques for language modeling.
+    Computer Speech \& Language, 13(4), 359-394.
+    \url{https://arxiv.org/abs/cmp-lg/9606011}
+    \arxiv
+
+\bibitem{church1990} Church, K. W., \& Hanks, P. (1990). 
+    Word association norms, mutual information, and lexicography.
+    \textit{Computational linguistics}, 16(1), 22-29.
+    \url{https://aclanthology.org/J90-1003/}
+    \openaccess
+    
+\bibitem{cole2021} Cole, S. C. (2021).
+    Surprise!
+    American Journal of Epidemiology, Volume 190, Issue 2, February 2021, Pages 191–193,
+    \url{https://doi.org/10.1093/aje/kwaa136}
+    \openaccess
+
+\bibitem{good1953} Good, I. J. (1953).
+    The population frequencies of species and the estimation of population parameters.
+    \textit{Biometrika}, 40(3-4), 237-264.
+    \url{https://doi.org/10.1093/biomet/40.3-4.237}
+
+\bibitem{gelman2013bayesian} Gelman, A., Carlin, J. B., Stern, H. S., 
+    Dunson, D. B., Vehtari, A., \& Rubin, D. B. (2013).
+    Bayesian data analysis.
+    Chapman and Hall/CRC.
+    \url{https://doi.org/10.1201/b16018}
+
+\bibitem{hand2004measurement} Hand, D. J. (2004).
+    Measurement theory and practice: The world through quantification.
+    Arnold London.
+
+\bibitem{laplace1812} Laplace, P. S. (1812).
+    Théorie analytique des probabilités.
+    \textit{Courcier}, Paris.
+    \url{https://archive.org/details/thorieanalytiqu00laplgoog}
+    \openaccess
+
+\bibitem{mackay1995} MacKay, D. J. C. \& Peto, L. C. (1995).
+    A hierarchical Dirichlet language model.
+    \textit{Natural language engineering}, 1(3), 289-308.
+    \url{https://doi.org/10.1017/S1351324900000218}
+
+\bibitem{shannon1948} Shannon, C. E. (1948).
+    A Mathematical Theory of Communication.
+    \textit{The Bell System Technical Journal}, 27(3), 379-423.
+    \url{https://doi.org/10.1002/j.1538-7305.1948.tb01338.x}
+
+\bibitem{stone2019} Stone, D. J. (2019)
+    Information Theory: A Tutorial Introduction
+    \url{https://arxiv.org/abs/1802.05968}
+    \arxiv
+
+\bibitem{taylor1997introduction} Taylor, J. R. (1997).
+    An introduction to error analysis: The study of uncertainties in physical measurements.
+    University Science Books.
+    \url{https://archive.org/details/introductiontoer00tayl}
+    
+\end{thebibliography}
+
+\end{document}
